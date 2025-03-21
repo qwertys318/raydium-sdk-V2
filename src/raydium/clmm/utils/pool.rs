@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::ops::Neg;
 use carbon_raydium_clmm_decoder::accounts::tick_array_state::TickArrayState;
-use solana_client::rpc_client::RpcClient;
 use solana_sdk::pubkey::Pubkey;
 use crate::raydium::clmm::tpe::ComputeClmmPoolInfo;
 use crate::raydium::clmm::utils::constants::{MAX_TICK, MIN_TICK};

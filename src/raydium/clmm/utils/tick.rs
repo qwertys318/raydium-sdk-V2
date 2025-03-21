@@ -71,7 +71,7 @@ impl TickUtils {
     pub fn get_tick_array_bit_index(tick_index: i32, tick_spacing: u16) -> i32 {
         let ticks_in_array = TickQuery::tick_count(tick_spacing);
         let mut start_index = tick_index as f64 / ticks_in_array as f64;
-        if (tick_index < 0 && tick_index % ticks_in_array as i32 != 0) {
+        if tick_index < 0 && tick_index % ticks_in_array as i32 != 0 {
             start_index = start_index.ceil() - 1.0;
         } else {
             start_index = start_index.floor();
@@ -108,7 +108,7 @@ impl TickUtils {
                 res.push(current_tick_array_bit_start_index);
             }
             current_tick_array_bit_start_index -= 1;
-            if (res.len() == expected_count as usize) {
+            if res.len() == expected_count as usize {
                 break;
             }
         }
@@ -135,7 +135,7 @@ impl TickUtils {
                 res.push(current_tick_array_bit_start_index);
             }
             current_tick_array_bit_start_index += 1;
-            if (res.len() == expected_count as usize) {
+            if res.len() == expected_count as usize {
                 break;
             }
         }

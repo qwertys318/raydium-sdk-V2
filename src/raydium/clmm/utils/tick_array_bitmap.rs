@@ -89,12 +89,12 @@ pub struct CheckTickArrayIsInitResult {
     pub start_index: i32,
 }
 
-struct GetBitmapResult {
+pub struct GetBitmapResult {
     offset: u32,
     tick_array_bitmap: [u64; 8],
 }
 
-struct ExtensionTickBoundaryResult {
+pub struct ExtensionTickBoundaryResult {
     positive_tick_boundary: i32,
     negative_tick_boundary: i32,
 }

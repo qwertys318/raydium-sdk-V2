@@ -2,7 +2,6 @@ use std::cmp::min;
 use std::collections::HashMap;
 use std::ops::{Add, Div, Mul, Neg, Shl, Shr, Sub};
 use std::str::FromStr;
-use carbon_raydium_clmm_decoder::types::TickState;
 use rug::{Complete, Integer};
 use solana_sdk::pubkey::Pubkey;
 use crate::raydium::clmm::utils::constants::{BIT_PRECISION, FEE_RATE_DENOMINATOR, LOG_B_2_X32, LOG_B_P_ERR_MARGIN_LOWER_X64, LOG_B_P_ERR_MARGIN_UPPER_X64, MAX_SQRT_PRICE_X64, MAX_SQRT_PRICE_X64_SUB_ONE, MAX_TICK, MIN_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64_ADD_ONE, MIN_TICK, Q64, U64_RESOLUTION};
@@ -122,7 +121,7 @@ impl SwapMath {
         };
         let mut tick_array_start_index = last_saved_tick_array_start_index;
         let mut tick_array_current = tick_array_cache.get(&last_saved_tick_array_start_index).unwrap();
-        let mut loop_count = 0;
+        // let mut loop_count = 0;
         let mut t = !zero_for_one && tick_array_current.start_tick_index == state.tick;
         while !state.amount_specified_remaining.is_zero() && !state.sqrt_price_x64.eq(&sqrt_price_limit_x64) {
             //@TODO
@@ -226,7 +225,7 @@ impl SwapMath {
                 t = tt != state.tick && !zero_for_one && tick_array_current.start_tick_index == tt;
                 state.tick = tt;
             }
-            loop_count += 1;
+            // loop_count += 1;
         }
         if let Some(next_start_index) = TickQuery::next_initialized_tick_array(state.tick, tick_spacing, zero_for_one, tick_array_bitmap, tick_array_bitmap_extension) {
             if last_saved_tick_array_start_index != next_start_index {
