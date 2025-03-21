@@ -1,9 +1,11 @@
 [package]
 name = "raydium-sdk-V2"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 license = "MIT"
 description = "Raydium SDK V2 adaptation"
+repository = "https://github.com/qwertys318/raydium-sdk-V2"
+readme = "README.md"
 
 [dependencies]
 carbon-raydium-clmm-decoder = "0.5.1"
