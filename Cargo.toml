@@ -1,0 +1,12 @@
+[package]
+name = "raydium-sdk-V2"
+version = "0.0.1"
+edition = "2021"
+license = "MIT"
+
+[dependencies]
+carbon-raydium-clmm-decoder = "0.5.1"
+rug = "1.27.0"
+solana-client = "2.1.13"
+solana-sdk = "2.1.13"
+
