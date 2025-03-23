@@ -12,10 +12,10 @@ use crate::raydium::clmm::utils::tick_query::TickQuery;
 
 #[derive(Debug)]
 pub struct GetInputAmountAndRemainAccountsResult {
-    expected_amount_in: rug::Integer,
+    pub expected_amount_in: rug::Integer,
     // @TODO remaining_accounts: Vec<Pubkey>,
-    execution_price: u128,
-    fee_amount: rug::Integer,
+    pub execution_price: u128,
+    pub fee_amount: rug::Integer,
 }
 
 #[derive(Debug)]
@@ -25,8 +25,8 @@ pub struct GetFirstInitializedTickArrayResult {
 }
 
 pub struct TickRange {
-    min_tick_boundary: i32,
-    max_tick_boundary: i32,
+    pub min_tick_boundary: i32,
+    pub max_tick_boundary: i32,
 }
 
 pub struct PoolUtils {}
