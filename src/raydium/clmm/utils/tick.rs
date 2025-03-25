@@ -16,7 +16,7 @@ impl TickUtils {
         if current_tick_array_start_index != tick_array_current.start_tick_index {
             return None;
         }
-        let mut offset_in_array = ((current_tick_index - tick_array_current.start_tick_index) / tick_spacing as i32) as usize;
+        let mut offset_in_array = ((current_tick_index - tick_array_current.start_tick_index)  as f32 / tick_spacing as f32).floor() as usize;
         if zero_for_one {
             // @TODO in originak is >= but it's breaking
             // while offset_in_array >= 0 {
@@ -61,8 +61,9 @@ impl TickUtils {
     }
     pub fn check_tick_array_is_initialized(bitmap: &rug::Integer, tick: i32, tick_spacing: u16) -> CheckTickArrayIsInitResult {
         let multiplier = tick_spacing as usize  * TICK_ARRAY_SIZE;
-        let compressed = (tick / multiplier as i32) + 512;
+        let compressed = (tick as f32 / multiplier as f32).floor() as i32 + 512;
         let bit_pos = compressed.abs();
+        // println!("check_tick_array_is_initialized {tick} {multiplier} {compressed} {bit_pos}");
         CheckTickArrayIsInitResult { is_initialized: bitmap.get_bit(bit_pos as u32), start_index: (bit_pos - 512) * multiplier as i32 }
     }
     pub fn check_is_out_of_boundary(tick: i32) -> bool {
@@ -82,7 +83,8 @@ impl TickUtils {
         Self::get_tick_array_bit_index(tick_index, tick_spacing) * TickQuery::tick_count(tick_spacing) as i32
     }
     pub fn get_initialized_tick_array_in_range(tick_array_bitmap: &[u64; 16], ex_bitmap_info: &carbon_raydium_clmm_decoder::accounts::tick_array_bitmap_extension::TickArrayBitmapExtension, tick_spacing: u16, tick_array_start_index: i32, expected_count: u8) -> Vec<i32> {
-        let tick_array_offset = (tick_array_start_index as usize / (tick_spacing as usize * TICK_ARRAY_SIZE)) as i32 ;
+        let tick_array_offset = (tick_array_start_index as f32 / (tick_spacing as f32 * TICK_ARRAY_SIZE as f32)).floor() as i32 ;
+        // println!("tick_array_start_index: {tick_array_start_index} tick_spacing: {tick_spacing} tick_array_offset: {tick_array_offset}");
         let mut res = TickUtils::search_low_bit_from_start(tick_array_bitmap, &ex_bitmap_info, tick_array_offset - 1, expected_count, tick_spacing);
         // println!("search_low_bit_from_start: {res:?}");
         let mut high = TickUtils::search_high_bit_from_start(tick_array_bitmap, &ex_bitmap_info, tick_array_offset, expected_count, tick_spacing);

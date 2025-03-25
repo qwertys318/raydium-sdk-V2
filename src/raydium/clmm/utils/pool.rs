@@ -93,18 +93,21 @@ impl PoolUtils {
         zero_for_one: bool,
     ) -> Result<GetFirstInitializedTickArrayResult, String> {
         let array_start_index = if Self::is_overflow_default_tickarray_bitmap(pool_info.pool_state.tick_spacing, vec![pool_info.pool_state.tick_current]) {
+            // println!("1");
             TickArrayBitmapExtensionUtils::check_tick_array_is_init(
                 TickQuery::get_array_start_index(pool_info.pool_state.tick_current, pool_info.pool_state.tick_spacing),
                 pool_info.pool_state.tick_spacing,
                 &pool_info.ex_bitmap_info,
             )?
         } else {
+            // println!("2");
             TickUtils::check_tick_array_is_initialized(
                 &TickUtils::merge_tick_array_bitmap(pool_info.pool_state.tick_array_bitmap.as_slice()),
                 pool_info.pool_state.tick_current,
                 pool_info.pool_state.tick_spacing,
             )
         };
+        // println!("get_first_initialized_tick_array array_start_index {}", array_start_index.start_index);
         if array_start_index.is_initialized {
             let (next_account_meta, _) = get_pda_tick_array_address(&pool_info.program_id, &pool_info.id, &(array_start_index.start_index as i32));
             Ok(GetFirstInitializedTickArrayResult { start_index: array_start_index.start_index, next_account_meta })
@@ -144,7 +147,7 @@ impl PoolUtils {
             &pool_info.ex_bitmap_info,
             zero_for_one,
             pool_info.amm_config.trade_fee_rate,
-            pool_info.pool_state.liquidity,
+            pool_info.pool_state.liquidity as i128,
             pool_info.pool_state.tick_current,
             pool_info.pool_state.tick_spacing,
             pool_info.pool_state.sqrt_price_x64,

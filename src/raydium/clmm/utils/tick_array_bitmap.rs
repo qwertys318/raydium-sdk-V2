@@ -24,7 +24,7 @@ impl TickArrayBitmap {
     pub fn get_bitmap_tick_boundary(tick_array_start_index: i32, tick_spacing: u16) -> GetBitmapTickBoundary {
         let ticks_in_one_bitmap = Self::max_tick_in_tick_array_bitmap(tick_spacing) as i32;
         let tick_array_start_index_abs = tick_array_start_index.abs();
-        let mut m = tick_array_start_index_abs / ticks_in_one_bitmap;
+        let mut m = (tick_array_start_index_abs as f32 / ticks_in_one_bitmap as f32).floor() as i32;
         if tick_array_start_index < 0 && tick_array_start_index_abs % ticks_in_one_bitmap != 0 {
             m += 1;
         }
@@ -169,6 +169,7 @@ impl TickArrayBitmapExtensionUtils {
 
         let ticks_in_one_bitmap = TickArrayBitmap::max_tick_in_tick_array_bitmap(tick_spacing);
         let tick_index_abs = tick_index.abs() as u32;
+        // floor
         let mut offset = (tick_index_abs / ticks_in_one_bitmap) - 1;
         if tick_index < 0 && tick_index_abs % ticks_in_one_bitmap == 0 {
             offset -= 1;
@@ -192,6 +193,7 @@ impl TickArrayBitmapExtensionUtils {
     }
     pub fn tick_array_offset_in_bitmap(tick_array_start_index: i32, tick_spacing: u16) -> u32 {
         let m = tick_array_start_index.abs() as u32 % TickArrayBitmap::max_tick_in_tick_array_bitmap(tick_spacing);
+        // floor
         let mut tick_array_offset_in_bitmap = m / TickQuery::tick_count(tick_spacing);
         if tick_array_start_index < 0 && m != 0 {
             tick_array_offset_in_bitmap = TICK_ARRAY_BITMAP_SIZE as u32 - tick_array_offset_in_bitmap;

@@ -1,14 +1,18 @@
-use std::cmp::min;
-use std::collections::HashMap;
-use std::ops::{Add, Div, Mul, Neg, Shl, Shr, Sub};
-use std::str::FromStr;
-use rug::{Complete, Integer};
-use solana_sdk::pubkey::Pubkey;
-use crate::raydium::clmm::utils::constants::{BIT_PRECISION, FEE_RATE_DENOMINATOR, LOG_B_2_X32, LOG_B_P_ERR_MARGIN_LOWER_X64, LOG_B_P_ERR_MARGIN_UPPER_X64, MAX_SQRT_PRICE_X64, MAX_SQRT_PRICE_X64_SUB_ONE, MAX_TICK, MIN_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64_ADD_ONE, MIN_TICK, Q64, U64_RESOLUTION};
+use crate::raydium::clmm::utils::constants::{
+    BIT_PRECISION, FEE_RATE_DENOMINATOR, LOG_B_2_X32, LOG_B_P_ERR_MARGIN_LOWER_X64,
+    LOG_B_P_ERR_MARGIN_UPPER_X64, MAX_SQRT_PRICE_X64, MAX_SQRT_PRICE_X64_SUB_ONE, MAX_TICK,
+    MIN_SQRT_PRICE_X64, MIN_SQRT_PRICE_X64_ADD_ONE, MIN_TICK, Q64, U64_RESOLUTION,
+};
 use crate::raydium::clmm::utils::pda::get_pda_tick_array_address;
 use crate::raydium::clmm::utils::pool::PoolUtils;
 use crate::raydium::clmm::utils::tick::TickUtils;
 use crate::raydium::clmm::utils::tick_query::TickQuery;
+use rug::{Complete, Integer};
+use solana_sdk::pubkey::Pubkey;
+use std::cmp::min;
+use std::collections::HashMap;
+use std::ops::{Add, AddAssign, Div, Mul, Neg, Shl, Shr, Sub};
+use std::str::FromStr;
 
 pub struct SwapMath {}
 
@@ -25,7 +29,7 @@ pub struct SwapComputeResult {
     pub amount_calculated: rug::Integer,
     pub fee_amount: rug::Integer,
     pub sqrt_price_x64: u128,
-    pub liquidity: u128,
+    pub liquidity: i128,
     pub tick_current: i32,
     pub accounts: Vec<Pubkey>,
 }
@@ -36,7 +40,7 @@ struct SwapComputeState {
     sqrt_price_x64: u128,
     tick: i32,
     accounts: Vec<Pubkey>,
-    liquidity: u128,
+    liquidity: i128,
     fee_amount: rug::Integer,
 }
 
@@ -61,12 +65,15 @@ impl SwapMath {
     pub fn swap_compute(
         program_id: &Pubkey,
         pool_id: &Pubkey,
-        tick_array_cache: &HashMap<i32, carbon_raydium_clmm_decoder::accounts::tick_array_state::TickArrayState>,
+        tick_array_cache: &HashMap<
+            i32,
+            carbon_raydium_clmm_decoder::accounts::tick_array_state::TickArrayState,
+        >,
         tick_array_bitmap: &[u64; 16],
         tick_array_bitmap_extension: &carbon_raydium_clmm_decoder::accounts::tick_array_bitmap_extension::TickArrayBitmapExtension,
         zero_for_one: bool,
         fee: u32,
-        liquidity: u128,
+        liquidity: i128,
         current_tick: i32,
         tick_spacing: u16,
         current_sqrt_price_x64: u128,
@@ -87,7 +94,7 @@ impl SwapMath {
                     MAX_SQRT_PRICE_X64_SUB_ONE
                 }
             }
-            Some(x) => x
+            Some(x) => x,
         };
         if zero_for_one {
             if sqrt_price_limit_x64.lt(&MIN_SQRT_PRICE_X64) {
@@ -106,7 +113,10 @@ impl SwapMath {
         }
         let base_input = amount_specified.gt(&0);
         let tick = if current_tick > last_saved_tick_array_start_index {
-            min(last_saved_tick_array_start_index + TickQuery::tick_count(tick_spacing) as i32, current_tick)
+            min(
+                last_saved_tick_array_start_index + TickQuery::tick_count(tick_spacing) as i32 - 1,
+                current_tick,
+            )
         } else {
             last_saved_tick_array_start_index
         };
@@ -120,10 +130,14 @@ impl SwapMath {
             fee_amount: rug::Integer::ZERO,
         };
         let mut tick_array_start_index = last_saved_tick_array_start_index;
-        let mut tick_array_current = tick_array_cache.get(&last_saved_tick_array_start_index).unwrap();
+        let mut tick_array_current = tick_array_cache
+            .get(&last_saved_tick_array_start_index)
+            .unwrap();
         // let mut loop_count = 0;
         let mut t = !zero_for_one && tick_array_current.start_tick_index == state.tick;
-        while !state.amount_specified_remaining.is_zero() && !state.sqrt_price_x64.eq(&sqrt_price_limit_x64) {
+        while !state.amount_specified_remaining.is_zero()
+            && !state.sqrt_price_x64.eq(&sqrt_price_limit_x64)
+        {
             //@TODO
             let mut step = StepComputations {
                 sqrt_price_start_x64: state.sqrt_price_x64.clone(),
@@ -136,16 +150,34 @@ impl SwapMath {
             };
             step.sqrt_price_start_x64 = state.sqrt_price_x64;
             let mut tick_array_address: Option<Pubkey> = None;
-            let mut next_init_tick_opt = TickUtils::next_init_tick(tick_array_current, state.tick, tick_spacing, zero_for_one, t);
-            if next_init_tick_opt.is_none() || next_init_tick_opt.as_ref().unwrap().liquidity_gross.gt(&0) {
-
+            let mut next_init_tick_opt = TickUtils::next_init_tick(
+                tick_array_current,
+                state.tick,
+                tick_spacing,
+                zero_for_one,
+                t,
+            );
+            if next_init_tick_opt.is_none()
+                || next_init_tick_opt.as_ref().unwrap().liquidity_gross.gt(&0)
+            {
                 //@TODO remove later if ok
-                let tmp_array_start_index = TickQuery::get_array_start_index(state.tick, tick_spacing);
-                if tmp_array_start_index != tick_array_start_index {
-                    return Err("TODO tmp_array_start_index != tick_array_start_index ?!?!?".to_string());
-                }
+                // tick_array_start_index = TickQuery::get_array_start_index(state.tick, tick_spacing);
+                // let tmp_array_starht_index = TickQuery::get_array_start_index(state.tick, tick_spacing);
+                // if tmp_array_start_index != tick_array_start_index {
+                //     return Err("TODO tmp_array_start_index != tick_array_start_index ?!?!?".to_string());
+                // }
 
-                match PoolUtils::next_initialized_tick_array_start_index(state.tick, tick_spacing, tick_array_bitmap, tick_array_bitmap_extension, zero_for_one)? {
+                // println!(
+                //     "{} {} {} {}",
+                //     state.tick, tick_spacing, tick_array_start_index, zero_for_one
+                // );
+                match PoolUtils::next_initialized_tick_array_start_index(
+                    state.tick,
+                    tick_spacing,
+                    tick_array_bitmap,
+                    tick_array_bitmap_extension,
+                    zero_for_one,
+                )? {
                     None => {
                         if catch_liquidity_insufficient {
                             return Ok(SwapComputeResult {
@@ -162,13 +194,22 @@ impl SwapMath {
                         return Err("swapCompute LiquidityInsufficient".to_string());
                     }
                     Some(next_init_tick_array_index) => {
+                        // println!(
+                        //     "tick_array_start_index: {} {}",
+                        //     tick_array_start_index, next_init_tick_array_index
+                        // );
                         tick_array_start_index = next_init_tick_array_index;
-                        let expected_next_tick_array_address = get_pda_tick_array_address(program_id, pool_id, &tick_array_start_index).0;
+                        let expected_next_tick_array_address = get_pda_tick_array_address(
+                            program_id,
+                            pool_id,
+                            &tick_array_start_index,
+                        )
+                        .0;
                         tick_array_address = Some(expected_next_tick_array_address);
                         tick_array_current = tick_array_cache.get(&tick_array_start_index).unwrap();
                         match TickUtils::first_initialized_tick(tick_array_current, zero_for_one) {
                             Ok(tick) => next_init_tick_opt = Some(tick),
-                            Err(e) => return Err(format!("not found next tick info: {e}"))
+                            Err(e) => return Err(format!("not found next tick info: {e}")),
                         }
                     }
                 }
@@ -176,7 +217,9 @@ impl SwapMath {
             let next_init_tick = next_init_tick_opt.unwrap();
             step.tick_next = next_init_tick.tick;
             step.initialized = next_init_tick.liquidity_gross.gt(&0);
-            if last_saved_tick_array_start_index != tick_array_start_index && tick_array_address.is_some() {
+            if last_saved_tick_array_start_index != tick_array_start_index
+                && tick_array_address.is_some()
+            {
                 state.accounts.push(tick_array_address.unwrap());
                 last_saved_tick_array_start_index = tick_array_start_index;
             }
@@ -186,12 +229,22 @@ impl SwapMath {
                 step.tick_next = MAX_TICK;
             }
             step.sqrt_price_next_x64 = SqrtPriceMath::get_sqrt_price_x64_from_tick(step.tick_next)?;
-            let target_price = if (zero_for_one && step.sqrt_price_next_x64.lt(&sqrt_price_limit_x64)) || (!zero_for_one && step.sqrt_price_next_x64.gt(&sqrt_price_limit_x64)) {
+            let target_price = if (zero_for_one
+                && step.sqrt_price_next_x64.lt(&sqrt_price_limit_x64))
+                || (!zero_for_one && step.sqrt_price_next_x64.gt(&sqrt_price_limit_x64))
+            {
                 sqrt_price_limit_x64
             } else {
                 step.sqrt_price_next_x64
             };
-            let swap_step_compute = Self::swap_step_compute(state.sqrt_price_x64, target_price, state.liquidity, &state.amount_specified_remaining, fee, zero_for_one)?;
+            let swap_step_compute = Self::swap_step_compute(
+                state.sqrt_price_x64,
+                target_price,
+                state.liquidity,
+                &state.amount_specified_remaining,
+                fee,
+                zero_for_one,
+            )?;
             state.sqrt_price_x64 = swap_step_compute.sqrt_price_x64;
             step.amount_in = swap_step_compute.amount_in;
             step.amount_out = swap_step_compute.amount_out;
@@ -200,11 +253,16 @@ impl SwapMath {
             state.fee_amount = state.fee_amount + &step.fee_amount;
 
             if base_input {
-                state.amount_specified_remaining = state.amount_specified_remaining.sub(step.amount_in.add(step.fee_amount));
+                state.amount_specified_remaining = state
+                    .amount_specified_remaining
+                    .sub(step.amount_in.add(step.fee_amount));
                 state.amount_calculated = state.amount_calculated.sub(step.amount_out);
             } else {
-                state.amount_specified_remaining = state.amount_specified_remaining.add(step.amount_out);
-                state.amount_calculated = state.amount_calculated.add(step.amount_in.add(step.fee_amount));
+                state.amount_specified_remaining =
+                    state.amount_specified_remaining.add(step.amount_out);
+                state.amount_calculated = state
+                    .amount_calculated
+                    .add(step.amount_in.add(step.fee_amount));
             }
             if state.sqrt_price_x64.eq(&step.sqrt_price_next_x64) {
                 if step.initialized {
@@ -212,9 +270,11 @@ impl SwapMath {
                     if zero_for_one {
                         liquidity_net = liquidity_net.neg();
                     }
-                    state.liquidity += liquidity_net as u128;
+                    state.liquidity += liquidity_net;
                 }
-                t = step.tick_next != state.tick && !zero_for_one && tick_array_current.start_tick_index == step.tick_next;
+                t = step.tick_next != state.tick
+                    && !zero_for_one
+                    && tick_array_current.start_tick_index == step.tick_next;
                 state.tick = if zero_for_one {
                     step.tick_next - 1
                 } else {
@@ -227,9 +287,17 @@ impl SwapMath {
             }
             // loop_count += 1;
         }
-        if let Some(next_start_index) = TickQuery::next_initialized_tick_array(state.tick, tick_spacing, zero_for_one, tick_array_bitmap, tick_array_bitmap_extension) {
+        if let Some(next_start_index) = TickQuery::next_initialized_tick_array(
+            state.tick,
+            tick_spacing,
+            zero_for_one,
+            tick_array_bitmap,
+            tick_array_bitmap_extension,
+        ) {
             if last_saved_tick_array_start_index != next_start_index {
-                state.accounts.push(get_pda_tick_array_address(program_id, pool_id, &next_start_index).0);
+                state
+                    .accounts
+                    .push(get_pda_tick_array_address(program_id, pool_id, &next_start_index).0);
             }
         }
         Ok(SwapComputeResult {
@@ -243,55 +311,117 @@ impl SwapMath {
             accounts: state.accounts,
         })
     }
-    fn swap_step_compute(sqrt_price_x64_current: u128, sqrt_price_x64_target: u128, liquidity: u128, amount_remaining: &rug::Integer, fee_rate: u32, zero_for_one: bool) -> Result<SwapStepComputeResult, String> {
+    fn swap_step_compute(
+        sqrt_price_x64_current: u128,
+        sqrt_price_x64_target: u128,
+        liquidity: i128,
+        amount_remaining: &rug::Integer,
+        fee_rate: u32,
+        zero_for_one: bool,
+    ) -> Result<SwapStepComputeResult, String> {
         let mut amount_in: Option<rug::Integer> = None;
         let mut amount_out: Option<rug::Integer> = None;
         let base_input = amount_remaining.gt(&rug::Integer::ZERO);
         let amount_remaining_neg = amount_remaining.neg().complete();
         let sqrt_price_x64_next = if base_input {
-            let amount_remaining_subtract_fee = MathUtil::mul_div_floor(amount_remaining, &rug::Integer::from_str(&(FEE_RATE_DENOMINATOR - fee_rate).to_string()).unwrap(), &rug::Integer::from_str(&FEE_RATE_DENOMINATOR.to_string()).unwrap())?;
+            let amount_remaining_subtract_fee = MathUtil::mul_div_floor(
+                amount_remaining,
+                &rug::Integer::from_str(&(FEE_RATE_DENOMINATOR - fee_rate).to_string()).unwrap(),
+                &rug::Integer::from_str(&FEE_RATE_DENOMINATOR.to_string()).unwrap(),
+            )?;
             amount_in = Some(if zero_for_one {
-                LiquidityMath::get_token_amount_a_from_liquidity(sqrt_price_x64_target, sqrt_price_x64_current, liquidity, true)?
+                LiquidityMath::get_token_amount_a_from_liquidity(
+                    sqrt_price_x64_target,
+                    sqrt_price_x64_current,
+                    liquidity,
+                    true,
+                )?
             } else {
-                LiquidityMath::get_token_amount_b_from_liquidity(sqrt_price_x64_current, sqrt_price_x64_target, liquidity, true)?
+                LiquidityMath::get_token_amount_b_from_liquidity(
+                    sqrt_price_x64_current,
+                    sqrt_price_x64_target,
+                    liquidity,
+                    true,
+                )?
             });
-            let sqrt_price_x64_next = if amount_remaining_subtract_fee.gt(amount_in.as_ref().unwrap()) {
-                sqrt_price_x64_target
-            } else {
-                SqrtPriceMath::get_next_sqrt_price_x64_from_input(sqrt_price_x64_current, liquidity, &amount_remaining_subtract_fee, zero_for_one)?
-            };
+            let sqrt_price_x64_next =
+                if amount_remaining_subtract_fee.gt(amount_in.as_ref().unwrap()) {
+                    sqrt_price_x64_target
+                } else {
+                    SqrtPriceMath::get_next_sqrt_price_x64_from_input(
+                        sqrt_price_x64_current,
+                        liquidity,
+                        &amount_remaining_subtract_fee,
+                        zero_for_one,
+                    )?
+                };
             sqrt_price_x64_next
         } else {
             amount_out = Some(if zero_for_one {
-                LiquidityMath::get_token_amount_b_from_liquidity(sqrt_price_x64_target, sqrt_price_x64_current, liquidity, false)?
+                LiquidityMath::get_token_amount_b_from_liquidity(
+                    sqrt_price_x64_target,
+                    sqrt_price_x64_current,
+                    liquidity,
+                    false,
+                )?
             } else {
-                LiquidityMath::get_token_amount_a_from_liquidity(sqrt_price_x64_current, sqrt_price_x64_target, liquidity, false)?
+                LiquidityMath::get_token_amount_a_from_liquidity(
+                    sqrt_price_x64_current,
+                    sqrt_price_x64_target,
+                    liquidity,
+                    false,
+                )?
             });
             let sqrt_price_x64_next = if amount_remaining_neg.gt(amount_out.as_ref().unwrap()) {
                 sqrt_price_x64_target
             } else {
-                SqrtPriceMath::get_next_sqrt_price_x64_from_output(sqrt_price_x64_current, liquidity, &amount_remaining_neg, zero_for_one)?
+                SqrtPriceMath::get_next_sqrt_price_x64_from_output(
+                    sqrt_price_x64_current,
+                    liquidity,
+                    &amount_remaining_neg,
+                    zero_for_one,
+                )?
             };
             sqrt_price_x64_next
         };
         let reach_target_price = sqrt_price_x64_target.eq(&sqrt_price_x64_next);
         if zero_for_one {
             if !(reach_target_price && base_input) {
-                amount_in = Some(LiquidityMath::get_token_amount_a_from_liquidity(sqrt_price_x64_next, sqrt_price_x64_current, liquidity, true)?);
+                amount_in = Some(LiquidityMath::get_token_amount_a_from_liquidity(
+                    sqrt_price_x64_next,
+                    sqrt_price_x64_current,
+                    liquidity,
+                    true,
+                )?);
             }
             if !(reach_target_price && !base_input) {
-                amount_out = Some(LiquidityMath::get_token_amount_b_from_liquidity(sqrt_price_x64_next, sqrt_price_x64_current, liquidity, false)?);
+                amount_out = Some(LiquidityMath::get_token_amount_b_from_liquidity(
+                    sqrt_price_x64_next,
+                    sqrt_price_x64_current,
+                    liquidity,
+                    false,
+                )?);
             }
         } else {
             amount_in = Some(if reach_target_price && base_input {
                 amount_in.as_ref().unwrap().clone()
             } else {
-                LiquidityMath::get_token_amount_b_from_liquidity(sqrt_price_x64_current, sqrt_price_x64_next, liquidity, true)?
+                LiquidityMath::get_token_amount_b_from_liquidity(
+                    sqrt_price_x64_current,
+                    sqrt_price_x64_next,
+                    liquidity,
+                    true,
+                )?
             });
             amount_out = Some(if reach_target_price && !base_input {
                 amount_out.as_ref().unwrap().clone()
             } else {
-                LiquidityMath::get_token_amount_a_from_liquidity(sqrt_price_x64_current, sqrt_price_x64_next, liquidity, false)?
+                LiquidityMath::get_token_amount_a_from_liquidity(
+                    sqrt_price_x64_current,
+                    sqrt_price_x64_next,
+                    liquidity,
+                    false,
+                )?
             });
         }
         if !base_input && amount_out.as_ref().unwrap().gt(&amount_remaining_neg) {
@@ -314,82 +444,126 @@ impl SwapMath {
     }
 }
 
-
-fn to_twos(n: &Integer, bit_width: u32) -> Integer {
-    // Если число отрицательное, переводим его в представление с двумя дополнениями.
-    if n < &Integer::from(0) {
-        n + (Integer::from(1) << bit_width)
+fn to_twos(n: Integer, bit_width: u32) -> Integer {
+   if n.is_negative() {
+       notn(n.abs(), bit_width).add(1)
+   } else {
+       n
+   }
+}
+fn notn(n: Integer, width: u32) -> Integer {
+    let mask = (Integer::from(1u32) << width) - 1u32;
+    let not_n = Integer::from(!n); // convert to full Integer
+    not_n & mask
+}
+fn from_twos(val: Integer, bits: u32) -> Integer {
+    if val.get_bit(bits-1) {
+        let a: Integer = notn(val, bits).add(1);
+        a.neg()
     } else {
-        n.clone()
+        val
     }
 }
 
-fn from_twos(n: &Integer, bit_width: u32) -> Integer {
+/*fn from_twos(n: &Integer, bit_width: u32) -> Integer {
     let threshold = Integer::from(1) << (bit_width - 1);
     if n >= &threshold {
         n - (Integer::from(1) << bit_width)
     } else {
         n.clone()
     }
-}
+}*/
 
-fn signed_left_shift(n: &Integer, shift_by: u32, bit_width: u32) -> Integer {
+fn signed_left_shift(n: Integer, shift_by: u32, bit_width: u32) -> Integer {
     let mut twos = to_twos(n, bit_width);
-    twos *= Integer::from(1) << shift_by;
-    let mask = (Integer::from(1) << (bit_width + 1)) - 1;
-    twos &= mask;
-    from_twos(&twos, bit_width)
+    // println!("twos: {twos}");
+    let mut twosN0 = twos.shl(shift_by);
+    // println!("twosN0: {twosN0}");
+    imaskn(&mut twosN0, bit_width + 1);
+    // println!("masked: {twosN0}");
+    from_twos(twosN0, bit_width)
 }
+// function signedLeftShift(n0: BN, shiftBy: number, bitWidth: number): BN {
+//   const twosN0 = n0.toTwos(bitWidth).shln(shiftBy);
+//   twosN0.imaskn(bitWidth + 1);
+//   return twosN0.fromTwos(bitWidth);
+// }
 
-fn signed_right_shift(n: &Integer, shift_by: u32, bit_width: u32) -> Integer {
+fn signed_right_shift(n: Integer, shift_by: u32, bit_width: u32) -> Integer {
     let twos = to_twos(n, bit_width);
-    let shifted = twos >> shift_by;
-    from_twos(&shifted, bit_width)
+    let mut twosN0 = twos.shr(shift_by);
+    imaskn(&mut twosN0, bit_width- shift_by + 1);
+    from_twos(twosN0, bit_width - shift_by)
 }
 
 fn mul_right_shift(val: &Integer, mul_by: &Integer) -> Integer {
     let product = (val * mul_by).complete();
-    signed_right_shift(&product, 64, 256)
+    signed_right_shift(product, 64, 256)
 }
 
 impl SqrtPriceMath {
-    pub fn get_next_sqrt_price_from_token_amount_a_rounding_up(sqrt_price_x64: u128, liquidity: u128, amount: &rug::Integer, add: bool) -> Result<rug::Integer, String> {
+    pub fn get_next_sqrt_price_from_token_amount_a_rounding_up(
+        sqrt_price_x64: u128,
+        liquidity: i128,
+        amount: &rug::Integer,
+        add: bool,
+    ) -> Result<rug::Integer, String> {
         let sqrt_price_x64 = rug::Integer::from_str(&sqrt_price_x64.to_string()).unwrap();
         if amount.is_zero() {
             return Ok(sqrt_price_x64);
         }
-        let liquidity_left_shift = rug::Integer::from_str(&liquidity.shl(U64_RESOLUTION).to_string()).unwrap();
+        let liquidity_left_shift =
+            rug::Integer::from_str(&liquidity.shl(U64_RESOLUTION).to_string()).unwrap();
         if add {
-            let denominator = (&liquidity_left_shift).add(amount.mul(&sqrt_price_x64)).complete();
+            let denominator = (&liquidity_left_shift)
+                .add(amount.mul(&sqrt_price_x64))
+                .complete();
             let numerator1 = liquidity_left_shift;
             if denominator.ge(&numerator1) {
                 return MathUtil::mul_div_ceil(&numerator1, &sqrt_price_x64, &denominator);
             }
-            Ok(MathUtil::mul_div_rounding_up(&numerator1, &rug::Integer::ONE, &(&numerator1).div(&sqrt_price_x64).complete().add(amount)))
+            Ok(MathUtil::mul_div_rounding_up(
+                &numerator1,
+                &rug::Integer::ONE,
+                &(&numerator1).div(&sqrt_price_x64).complete().add(amount),
+            ))
         } else {
             let amount_mul_sqrt_price = amount.mul(&sqrt_price_x64).complete();
             if !liquidity_left_shift.gt(&amount_mul_sqrt_price) {
                 return Err("getNextSqrtPriceFromTokenAmountARoundingUp,liquidityLeftShift must gt amountMulSqrtPrice".to_string());
             }
-            let denominator = (&liquidity_left_shift).sub(&amount_mul_sqrt_price).complete();
+            let denominator = (&liquidity_left_shift)
+                .sub(&amount_mul_sqrt_price)
+                .complete();
             MathUtil::mul_div_ceil(&liquidity_left_shift, &sqrt_price_x64, &denominator)
         }
     }
-    pub fn get_next_sqrt_price_from_token_amount_b_rounding_down(sqrt_price_x64: u128, liquidity: u128, amount: &rug::Integer, add: bool) -> Result<rug::Integer, String> {
+    pub fn get_next_sqrt_price_from_token_amount_b_rounding_down(
+        sqrt_price_x64: u128,
+        liquidity: i128,
+        amount: &rug::Integer,
+        add: bool,
+    ) -> Result<rug::Integer, String> {
         let sqrt_price_x64 = rug::Integer::from_str(&sqrt_price_x64.to_string()).unwrap();
         let liquidity = rug::Integer::from_str(&liquidity.to_string()).unwrap();
         let delta_y = amount.shl(U64_RESOLUTION as i32).complete();
         if add {
             Ok(sqrt_price_x64.add(delta_y.div(liquidity)))
         } else {
-            let amount_div_liquidity = MathUtil::mul_div_rounding_up(&delta_y, &rug::Integer::ONE, &liquidity);
+            let amount_div_liquidity =
+                MathUtil::mul_div_rounding_up(&delta_y, &rug::Integer::ONE, &liquidity);
             if !sqrt_price_x64.gt(&amount_div_liquidity) {
                 return Err("getNextSqrtPriceFromTokenAmountBRoundingDown sqrtPriceX64 must gt amountDivLiquidity".to_string());
             }
             Ok(sqrt_price_x64.sub(amount_div_liquidity))
         }
     }
-    pub fn get_next_sqrt_price_x64_from_input(sqrt_price_x64: u128, liquidity: u128, amount_in: &rug::Integer, zero_for_one: bool) -> Result<u128, String> {
+    pub fn get_next_sqrt_price_x64_from_input(
+        sqrt_price_x64: u128,
+        liquidity: i128,
+        amount_in: &rug::Integer,
+        zero_for_one: bool,
+    ) -> Result<u128, String> {
         if !sqrt_price_x64.gt(&0) {
             return Err("sqrtPriceX64 must greater than 0".to_string());
         }
@@ -397,16 +571,31 @@ impl SqrtPriceMath {
             return Err("liquidity must greater than 0".to_string());
         }
         let next = if zero_for_one {
-            Self::get_next_sqrt_price_from_token_amount_a_rounding_up(sqrt_price_x64, liquidity, amount_in, true)
+            Self::get_next_sqrt_price_from_token_amount_a_rounding_up(
+                sqrt_price_x64,
+                liquidity,
+                amount_in,
+                true,
+            )
         } else {
-            Self::get_next_sqrt_price_from_token_amount_b_rounding_down(sqrt_price_x64, liquidity, amount_in, true)
+            Self::get_next_sqrt_price_from_token_amount_b_rounding_down(
+                sqrt_price_x64,
+                liquidity,
+                amount_in,
+                true,
+            )
         };
         match next {
             Ok(x) => Ok(x.to_u128().unwrap()),
-            Err(e) => Err(e)
+            Err(e) => Err(e),
         }
     }
-    pub fn get_next_sqrt_price_x64_from_output(sqrt_price_x64: u128, liquidity: u128, amount_out: &rug::Integer, zero_for_one: bool) -> Result<u128, String> {
+    pub fn get_next_sqrt_price_x64_from_output(
+        sqrt_price_x64: u128,
+        liquidity: i128,
+        amount_out: &rug::Integer,
+        zero_for_one: bool,
+    ) -> Result<u128, String> {
         if !sqrt_price_x64.gt(&0) {
             return Err("sqrtPriceX64 must greater than 0".to_string());
         }
@@ -414,22 +603,35 @@ impl SqrtPriceMath {
             return Err("liquidity must greater than 0".to_string());
         }
         let next = if zero_for_one {
-            Self::get_next_sqrt_price_from_token_amount_b_rounding_down(sqrt_price_x64, liquidity, amount_out, false)
+            Self::get_next_sqrt_price_from_token_amount_b_rounding_down(
+                sqrt_price_x64,
+                liquidity,
+                amount_out,
+                false,
+            )
         } else {
-            Self::get_next_sqrt_price_from_token_amount_a_rounding_up(sqrt_price_x64, liquidity, amount_out, false)
+            Self::get_next_sqrt_price_from_token_amount_a_rounding_up(
+                sqrt_price_x64,
+                liquidity,
+                amount_out,
+                false,
+            )
         };
         match next {
             Ok(x) => Ok(x.to_u128().unwrap()),
-            Err(e) => Err(e)
+            Err(e) => Err(e),
         }
     }
     fn get_tick_from_sqrt_price_x64(sqrt_price_x64: u128) -> Result<i32, String> {
         if sqrt_price_x64.gt(&MAX_SQRT_PRICE_X64) || sqrt_price_x64.lt(&MIN_SQRT_PRICE_X64) {
-            return Err("Provided sqrtPrice is not within the supported sqrtPrice range.".to_string());
+            return Err(
+                "Provided sqrtPrice is not within the supported sqrtPrice range.".to_string(),
+            );
         }
-        let msb = u128_bit_length(sqrt_price_x64) - 1;
+        let msb = (u128_bit_length(sqrt_price_x64) - 1) as i32;
         let adjusted_msb = rug::Integer::from_str(&(msb - 64).to_string()).unwrap();
-        let log_2p_integer_x32 = signed_left_shift(&adjusted_msb, 32, 128);
+        let log_2p_integer_x32 = signed_left_shift(adjusted_msb, 32, 128);
+        // println!("msb: {msb}, log_2p_integer_x32: {log_2p_integer_x32}");
 
         let mut bit = Integer::from_str_radix("8000000000000000", 16).unwrap();
         let mut precision = 0;
@@ -451,16 +653,32 @@ impl SqrtPriceMath {
 
         let log_2p_fraction_x32 = log_2p_fraction_x64.shr(32);
 
-        let log_2p_x32: rug::Integer = log_2p_integer_x32.add(log_2p_fraction_x32);
-        let log_bp_x64 = log_2p_x32.mul(rug::Integer::from_str(&LOG_B_2_X32).unwrap());
+        let log_2p_x32: rug::Integer = log_2p_integer_x32.add(&log_2p_fraction_x32);
+        let log_bp_x64 = (&log_2p_x32).mul(rug::Integer::from_str(&LOG_B_2_X32).unwrap());
 
-        let tick_low = signed_right_shift(&(&log_bp_x64).sub(rug::Integer::from_str(&LOG_B_P_ERR_MARGIN_LOWER_X64).unwrap()), 64, 128);
-        let tick_high = signed_right_shift(&log_bp_x64.add(rug::Integer::from_str(&LOG_B_P_ERR_MARGIN_UPPER_X64).unwrap()), 64, 128);
+        let tick_low = signed_right_shift(
+            (&log_bp_x64).sub(rug::Integer::from_str(&LOG_B_P_ERR_MARGIN_LOWER_X64).unwrap()),
+            64,
+            128,
+        );
+        let tick_high = signed_right_shift(
+            (&log_bp_x64).add(rug::Integer::from_str(&LOG_B_P_ERR_MARGIN_UPPER_X64).unwrap()),
+            64,
+            128,
+        );
+        // println!(
+        //     "log_2p_fraction_x32: {log_2p_fraction_x32}, log_2p_x32: {log_2p_x32}, log_bp_x64: {log_bp_x64}, tick_low: {tick_low}, tick_high: {tick_high}",
+        // );
 
         if tick_low == tick_high {
             Ok(tick_low.to_i32().unwrap())
         } else {
-            let derived_tick_high_sqrt_price_x64 = SqrtPriceMath::get_sqrt_price_x64_from_tick(tick_high.to_i32().unwrap())?;
+            let tick_high_i32 = match tick_high.to_i32() {
+                None => return Err(format!("tickHigh is not i32: {tick_high}")),
+                Some(x) => x,
+            };
+            let derived_tick_high_sqrt_price_x64 =
+                SqrtPriceMath::get_sqrt_price_x64_from_tick(tick_high_i32)?;
             if derived_tick_high_sqrt_price_x64.le(&sqrt_price_x64) {
                 Ok(tick_high.to_i32().unwrap())
             } else {
@@ -544,20 +762,35 @@ impl SqrtPriceMath {
 }
 
 impl MathUtil {
-    pub fn mul_div_floor(a: &rug::Integer, b: &rug::Integer, denominator: &rug::Integer) -> Result<rug::Integer, String> {
+    pub fn mul_div_floor(
+        a: &rug::Integer,
+        b: &rug::Integer,
+        denominator: &rug::Integer,
+    ) -> Result<rug::Integer, String> {
         if denominator.is_zero() {
             return Err("division by 0".to_string());
         }
         Ok(a.mul(b).complete().div(denominator))
     }
-    pub fn mul_div_ceil(a: &rug::Integer, b: &rug::Integer, denominator: &rug::Integer) -> Result<rug::Integer, String> {
+    pub fn mul_div_ceil(
+        a: &rug::Integer,
+        b: &rug::Integer,
+        denominator: &rug::Integer,
+    ) -> Result<rug::Integer, String> {
         if denominator.is_zero() {
             return Err("division by 0".to_string());
         }
-        let numerator = a.mul(b).complete().add(denominator.sub(rug::Integer::ONE).complete());
+        let numerator = a
+            .mul(b)
+            .complete()
+            .add(denominator.sub(rug::Integer::ONE).complete());
         Ok(numerator.div(denominator))
     }
-    pub fn mul_div_rounding_up(a: &rug::Integer, b: &rug::Integer, denominator: &rug::Integer) -> rug::Integer {
+    pub fn mul_div_rounding_up(
+        a: &rug::Integer,
+        b: &rug::Integer,
+        denominator: &rug::Integer,
+    ) -> rug::Integer {
         let numerator = a.mul(b).complete();
         let mut res = (&numerator / denominator).complete();
         if !numerator.modulo(denominator).eq(&rug::Integer::ZERO) {
@@ -568,7 +801,12 @@ impl MathUtil {
 }
 
 impl LiquidityMath {
-    pub fn get_token_amount_a_from_liquidity(sqrt_price_x64_a: u128, sqrt_price_x64_b: u128, liquidity: u128, round_up: bool) -> Result<rug::Integer, String> {
+    pub fn get_token_amount_a_from_liquidity(
+        sqrt_price_x64_a: u128,
+        sqrt_price_x64_b: u128,
+        liquidity: i128,
+        round_up: bool,
+    ) -> Result<rug::Integer, String> {
         let (a, b) = if sqrt_price_x64_a.gt(&sqrt_price_x64_b) {
             (sqrt_price_x64_b, sqrt_price_x64_a)
         } else {
@@ -577,7 +815,8 @@ impl LiquidityMath {
         if !a.gt(&0) {
             return Err("(1) sqrtPriceX64A must greater than 0".to_string());
         }
-        let numerator1 = rug::Integer::from_str(&(liquidity.clone() << U64_RESOLUTION).to_string()).unwrap();
+        let numerator1 =
+            rug::Integer::from_str(&(liquidity.clone() << U64_RESOLUTION).to_string()).unwrap();
         let numerator2 = rug::Integer::from_str(&b.sub(a).to_string()).unwrap();
 
         if round_up {
@@ -591,7 +830,12 @@ impl LiquidityMath {
         }
     }
 
-    pub fn get_token_amount_b_from_liquidity(sqrt_price_x64_a: u128, sqrt_price_x64_b: u128, liquidity: u128, round_up: bool) -> Result<rug::Integer, String> {
+    pub fn get_token_amount_b_from_liquidity(
+        sqrt_price_x64_a: u128,
+        sqrt_price_x64_b: u128,
+        liquidity: i128,
+        round_up: bool,
+    ) -> Result<rug::Integer, String> {
         let (a, b) = if sqrt_price_x64_a.gt(&sqrt_price_x64_b) {
             (sqrt_price_x64_b, sqrt_price_x64_a)
         } else {
@@ -612,5 +856,13 @@ impl LiquidityMath {
 }
 
 fn u128_bit_length(x: u128) -> u32 {
-    if x == 0 { 0 } else { 128 - x.leading_zeros() }
+    if x == 0 {
+        0
+    } else {
+        128 - x.leading_zeros()
+    }
+}
+fn imaskn(val: &mut Integer, n: u32) {
+    let mask = Integer::from(1u32) << n;
+    *val &= mask - 1;
 }
