@@ -2733,7 +2733,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "raydium-sdk-V2"
+name = "raydium-sdk-v2"
 version = "0.0.4"
 dependencies = [
  "carbon-raydium-clmm-decoder",
