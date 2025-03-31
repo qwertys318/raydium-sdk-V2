@@ -1,6 +1,6 @@
 [package]
-name = "raydium-sdk-v2"
-version = "0.0.4"
+name = "raydium-sdk-V2"
+version = "0.0.5"
 edition = "2021"
 license = "MIT"
 description = "Raydium SDK V2 adaptation"
@@ -10,5 +10,11 @@ readme = "README.md"
 [dependencies]
 carbon-raydium-clmm-decoder = "0.5.1"
 rug = "1.27.0"
+solana-account = "2.1.13"
+solana-client = "2.1.13"
 solana-sdk = "2.1.13"
-
+spl-token = "6.0.0"
+spl-token-2022 = "4.0.0"
+tokio = "1.44.1"
+solana-account-decoder-client-types = "2.1.13"
+solana-hash = "2.1.14"

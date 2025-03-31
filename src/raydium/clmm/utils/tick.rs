@@ -41,10 +41,10 @@ impl TickUtils {
     }
     pub fn first_initialized_tick<'a>(tick_array_current: &'a carbon_raydium_clmm_decoder::accounts::tick_array_state::TickArrayState, zero_for_one: bool) -> Result<&'a carbon_raydium_clmm_decoder::types::TickState, String> {
         if zero_for_one {
-            let mut i = TICK_ARRAY_SIZE - 1;
+            let mut i = (TICK_ARRAY_SIZE - 1) as isize;
             while i >= 0 {
-                if tick_array_current.ticks[i].liquidity_gross.gt(&0) {
-                    return Ok(&tick_array_current.ticks[i]);
+                if tick_array_current.ticks[i as usize].liquidity_gross.gt(&0) {
+                    return Ok(&tick_array_current.ticks[i as usize]);
                 }
                 i -= 1;
             }

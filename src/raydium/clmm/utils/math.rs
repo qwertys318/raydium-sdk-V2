@@ -11,8 +11,9 @@ use rug::{Complete, Integer};
 use solana_sdk::pubkey::Pubkey;
 use std::cmp::min;
 use std::collections::HashMap;
-use std::ops::{Add, AddAssign, Div, Mul, Neg, Shl, Shr, Sub};
+use std::ops::{Add, Div, Mul, Neg, Shl, Shr, Sub};
 use std::str::FromStr;
+use rug::ops::CompleteRound;
 
 pub struct SwapMath {}
 
@@ -475,13 +476,13 @@ fn from_twos(val: Integer, bits: u32) -> Integer {
 }*/
 
 fn signed_left_shift(n: Integer, shift_by: u32, bit_width: u32) -> Integer {
-    let mut twos = to_twos(n, bit_width);
+    let twos = to_twos(n, bit_width);
     // println!("twos: {twos}");
-    let mut twosN0 = twos.shl(shift_by);
+    let mut twos_n0 = twos.shl(shift_by);
     // println!("twosN0: {twosN0}");
-    imaskn(&mut twosN0, bit_width + 1);
+    imaskn(&mut twos_n0, bit_width + 1);
     // println!("masked: {twosN0}");
-    from_twos(twosN0, bit_width)
+    from_twos(twos_n0, bit_width)
 }
 // function signedLeftShift(n0: BN, shiftBy: number, bitWidth: number): BN {
 //   const twosN0 = n0.toTwos(bitWidth).shln(shiftBy);
@@ -502,6 +503,12 @@ fn mul_right_shift(val: &Integer, mul_by: &Integer) -> Integer {
 }
 
 impl SqrtPriceMath {
+    pub fn price_to_sqrt_price_x64(price: &rug::Float, decimals_a: u8, decimals_b: u8)->u128 {
+        let prec = price.prec();
+        let a = (decimals_b - decimals_a).pow(10);
+        let b = price.mul(a).complete(prec).sqrt();
+        MathUtil::decimal_to_x64(&b).to_u128().unwrap()
+    }
     pub fn get_next_sqrt_price_from_token_amount_a_rounding_up(
         sqrt_price_x64: u128,
         liquidity: i128,
@@ -762,6 +769,9 @@ impl SqrtPriceMath {
 }
 
 impl MathUtil {
+    pub fn decimal_to_x64(num: &rug::Float)->rug::Integer{
+        num.mul(2_i32.pow(64)).complete(0).to_integer().unwrap()
+    }
     pub fn mul_div_floor(
         a: &rug::Integer,
         b: &rug::Integer,

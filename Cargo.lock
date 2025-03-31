@@ -2733,12 +2733,19 @@ dependencies = [
 ]
 
 [[package]]
-name = "raydium-sdk-v2"
-version = "0.0.4"
+name = "raydium-sdk-V2"
+version = "0.0.5"
 dependencies = [
  "carbon-raydium-clmm-decoder",
  "rug",
+ "solana-account",
+ "solana-account-decoder-client-types",
+ "solana-client",
+ "solana-hash",
  "solana-sdk",
+ "spl-token",
+ "spl-token-2022",
+ "tokio",
 ]
 
 [[package]]
