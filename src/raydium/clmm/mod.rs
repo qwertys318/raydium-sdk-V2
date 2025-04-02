@@ -1,7 +1,7 @@
 use crate::api::tpe::ClmmKeys;
 use crate::common::owner::OwnerInfo;
 use crate::common::pubkey::WSOL_MINT;
-use crate::common::tx_tool::TxBuilder;
+use crate::common::tx_tool::{ComputeBudgetConfig, TxBuilder, TxTipConfig};
 use crate::raydium::clmm::instrument::ClmmInstrument;
 use crate::raydium::clmm::tpe::ComputeClmmPoolInfo;
 use crate::raydium::clmm::utils::constants::{
@@ -28,7 +28,7 @@ impl Clmm {
     /// @TODO It does not create\fetch token accounts.
     /// @TODO So, make sure you created it in advance
     /// @TODO And clmm.base.account.fetch_wallet_token_accounts() was executed.
-    pub async fn swap(
+    pub fn swap(
         &self,
         latest_blockhash: solana_hash::Hash,
         pool_info: &ComputeClmmPoolInfo,
@@ -42,6 +42,8 @@ impl Clmm {
         observation_id: Pubkey,
         fee_payer: Option<Pubkey>,
         is_associated_only: bool,
+        compute_budget_config: Option<ComputeBudgetConfig>,
+        tx_tip_config: Option<TxTipConfig>,
     ) -> Result<VersionedTransaction, String> {
         let mut tx_builder = self.create_tx_builder(fee_payer)?;
         let base_in = input_mint == &pool_info.pool_state.token_mint0;
@@ -80,7 +82,10 @@ impl Clmm {
                 /* @TODO */ None,
                 acc_a_is_associated_only,
             )
-            .ok_or(format!("Token account A {} was not found", pool_info.pool_state.token_mint0))?;
+            .ok_or(format!(
+                "Token account A {} was not found",
+                pool_info.pool_state.token_mint0
+            ))?;
         let acc_b_is_associated_only = if mint_b_use_sol_balance {
             false
         } else {
@@ -95,7 +100,10 @@ impl Clmm {
                 /* @TODO */ None,
                 acc_b_is_associated_only,
             )
-            .ok_or(format!("Token account B {} was not found", pool_info.pool_state.token_mint1))?;
+            .ok_or(format!(
+                "Token account B {} was not found",
+                pool_info.pool_state.token_mint1
+            ))?;
         let pool_keys = prop_pool_keys.ok_or("@TODO self.get_clmm_pool_keys")?;
         let owner_info = instrument::OwnerInfo {
             wallet: self.base.scope.owner_pubkey().unwrap(),
@@ -113,9 +121,12 @@ impl Clmm {
             sqrt_price_limit_x64,
             remaining_accounts,
         ));
-
-        // @TODO tx_builder.add_custom_compute_budget(compute_budget_config);
-        // @TODO tx_builder.add_tip_instruction(tx_tip_config);
+        if let Some(x) = compute_budget_config {
+            tx_builder.add_custom_compute_budget(x);
+        }
+        if let Some(x) = tx_tip_config {
+            tx_builder.add_tip_instruction(x);
+        }
         Ok(tx_builder.build_v0(latest_blockhash))
     }
     fn create_tx_builder(&self, fee_payer: Option<Pubkey>) -> Result<TxBuilder, String> {

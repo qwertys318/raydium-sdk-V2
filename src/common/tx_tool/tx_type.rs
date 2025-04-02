@@ -1,3 +1,7 @@
 pub enum InstructionType {
-    ClmmSwapBaseIn
+    ClmmSwapBaseIn,
+
+    SetComputeUnitPrice,
+    SetComputeUnitLimit,
+    TransferTip,
 }
