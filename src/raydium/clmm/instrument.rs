@@ -27,7 +27,7 @@ impl ClmmInstrument {
         input_vault: Pubkey,
         output_vault: Pubkey,
         input_mint: Pubkey,
-        output__mint: Pubkey,
+        output_mint: Pubkey,
         tick_array: Vec<Pubkey>,
         observation_id: Pubkey,
         amount: rug::Integer,
@@ -49,7 +49,7 @@ impl ClmmInstrument {
             AccountMeta::new_readonly(spl_token_2022::ID, false),
             AccountMeta::new_readonly(Pubkey::from_str_const(MEMO_PROGRAM_ID), false),
             AccountMeta::new_readonly(input_mint, false),
-            AccountMeta::new_readonly(output__mint, false),
+            AccountMeta::new_readonly(output_mint, false),
         ];
         if let Some(x) = ex_tick_array_bitmap {
             keys.push(AccountMeta::new(x, false));

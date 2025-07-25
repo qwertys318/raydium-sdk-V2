@@ -10,7 +10,6 @@ use solana_sdk::instruction::Instruction;
 use solana_sdk::message::{v0, VersionedMessage};
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::transaction::VersionedTransaction;
-use std::str::FromStr;
 use solana_sdk::system_instruction;
 
 pub struct TxBuilder<'a> {

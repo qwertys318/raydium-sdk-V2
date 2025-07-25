@@ -119,7 +119,7 @@ impl PoolUtils {
                     pool_info.pool_state.tick_spacing,
                 ),
                 pool_info.pool_state.tick_spacing,
-                &pool_info.ex_bitmap_info,
+                &pool_info.ex_bitmap_info.as_ref().unwrap(),
             )?
         } else {
             // println!("2");
@@ -147,7 +147,7 @@ impl PoolUtils {
                 pool_info.pool_state.tick_current,
                 pool_info.pool_state.tick_spacing,
                 &pool_info.pool_state.tick_array_bitmap,
-                &pool_info.ex_bitmap_info,
+                &pool_info.ex_bitmap_info.as_ref().unwrap(),
                 // TickQuery::get_array_start_index(pool_info.pool_state.tick_current, pool_info.pool_state.tick_spacing),
                 zero_for_one,
             )? {
@@ -187,9 +187,9 @@ impl PoolUtils {
             &pool_info.id,
             tick_array_cache,
             &pool_info.pool_state.tick_array_bitmap,
-            &pool_info.ex_bitmap_info,
+            pool_info.ex_bitmap_info.as_ref().unwrap(),
             zero_for_one,
-            pool_info.amm_config.trade_fee_rate,
+            pool_info.amm_config.as_ref().unwrap().trade_fee_rate,
             pool_info.pool_state.liquidity as i128,
             pool_info.pool_state.tick_current,
             pool_info.pool_state.tick_spacing,

@@ -492,9 +492,9 @@ fn signed_left_shift(n: Integer, shift_by: u32, bit_width: u32) -> Integer {
 
 fn signed_right_shift(n: Integer, shift_by: u32, bit_width: u32) -> Integer {
     let twos = to_twos(n, bit_width);
-    let mut twosN0 = twos.shr(shift_by);
-    imaskn(&mut twosN0, bit_width- shift_by + 1);
-    from_twos(twosN0, bit_width - shift_by)
+    let mut twos_n0 = twos.shr(shift_by);
+    imaskn(&mut twos_n0, bit_width- shift_by + 1);
+    from_twos(twos_n0, bit_width - shift_by)
 }
 
 fn mul_right_shift(val: &Integer, mul_by: &Integer) -> Integer {
