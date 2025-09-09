@@ -159,7 +159,7 @@ impl SwapMath {
                 t,
             );
             if next_init_tick_opt.is_none()
-                || next_init_tick_opt.as_ref().unwrap().liquidity_gross.gt(&0)
+                || next_init_tick_opt.as_ref().unwrap().liquidity_gross.eq(&0)
             {
                 //@TODO remove later if ok
                 // tick_array_start_index = TickQuery::get_array_start_index(state.tick, tick_spacing);
