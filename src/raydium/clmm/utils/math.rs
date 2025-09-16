@@ -7,13 +7,13 @@ use crate::raydium::clmm::utils::pda::get_pda_tick_array_address;
 use crate::raydium::clmm::utils::pool::PoolUtils;
 use crate::raydium::clmm::utils::tick::TickUtils;
 use crate::raydium::clmm::utils::tick_query::TickQuery;
+use rug::ops::CompleteRound;
 use rug::{Complete, Integer};
 use solana_sdk::pubkey::Pubkey;
 use std::cmp::min;
 use std::collections::HashMap;
 use std::ops::{Add, Div, Mul, Neg, Shl, Shr, Sub};
 use std::str::FromStr;
-use rug::ops::CompleteRound;
 
 pub struct SwapMath {}
 
@@ -446,11 +446,11 @@ impl SwapMath {
 }
 
 fn to_twos(n: Integer, bit_width: u32) -> Integer {
-   if n.is_negative() {
-       notn(n.abs(), bit_width).add(1)
-   } else {
-       n
-   }
+    if n.is_negative() {
+        notn(n.abs(), bit_width).add(1)
+    } else {
+        n
+    }
 }
 fn notn(n: Integer, width: u32) -> Integer {
     let mask = (Integer::from(1u32) << width) - 1u32;
@@ -458,7 +458,7 @@ fn notn(n: Integer, width: u32) -> Integer {
     not_n & mask
 }
 fn from_twos(val: Integer, bits: u32) -> Integer {
-    if val.get_bit(bits-1) {
+    if val.get_bit(bits - 1) {
         let a: Integer = notn(val, bits).add(1);
         a.neg()
     } else {
@@ -493,7 +493,7 @@ fn signed_left_shift(n: Integer, shift_by: u32, bit_width: u32) -> Integer {
 fn signed_right_shift(n: Integer, shift_by: u32, bit_width: u32) -> Integer {
     let twos = to_twos(n, bit_width);
     let mut twos_n0 = twos.shr(shift_by);
-    imaskn(&mut twos_n0, bit_width- shift_by + 1);
+    imaskn(&mut twos_n0, bit_width - shift_by + 1);
     from_twos(twos_n0, bit_width - shift_by)
 }
 
@@ -503,7 +503,7 @@ fn mul_right_shift(val: &Integer, mul_by: &Integer) -> Integer {
 }
 
 impl SqrtPriceMath {
-    pub fn price_to_sqrt_price_x64(price: &rug::Float, decimals_a: u8, decimals_b: u8)->u128 {
+    pub fn price_to_sqrt_price_x64(price: &rug::Float, decimals_a: u8, decimals_b: u8) -> u128 {
         let prec = price.prec();
         let a = (decimals_b - decimals_a).pow(10);
         let b = price.mul(a).complete(prec).sqrt();
@@ -769,7 +769,7 @@ impl SqrtPriceMath {
 }
 
 impl MathUtil {
-    pub fn decimal_to_x64(num: &rug::Float)->rug::Integer{
+    pub fn decimal_to_x64(num: &rug::Float) -> rug::Integer {
         num.mul(2_i32.pow(64)).complete(0).to_integer().unwrap()
     }
     pub fn mul_div_floor(
@@ -829,15 +829,16 @@ impl LiquidityMath {
             rug::Integer::from_str(&(liquidity.clone() << U64_RESOLUTION).to_string()).unwrap();
         let numerator2 = rug::Integer::from_str(&b.sub(a).to_string()).unwrap();
 
-        if round_up {
+        let amount = if round_up {
             let md3 = rug::Integer::from_str(&b.to_string()).unwrap();
             let m1 = MathUtil::mul_div_ceil(&numerator1, &numerator2, &md3)?;
             let m3 = rug::Integer::from_str(&a.to_string()).unwrap();
-            Ok(MathUtil::mul_div_rounding_up(&m1, rug::Integer::ONE, &m3))
+            MathUtil::mul_div_rounding_up(&m1, rug::Integer::ONE, &m3)
         } else {
             let m3 = rug::Integer::from_str(&b.to_string()).unwrap();
-            MathUtil::mul_div_floor(&numerator1, &numerator2, &m3)
-        }
+            MathUtil::mul_div_floor(&numerator1, &numerator2, &m3)?.div(sqrt_price_x64_a)
+        };
+        Ok(amount)
     }
 
     pub fn get_token_amount_b_from_liquidity(
